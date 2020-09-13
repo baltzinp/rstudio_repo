@@ -1,24 +1,32 @@
-smp1 <- read_csv2("/Users/baltzingerphilippe/Downloads/smp1.csv")
-smp2 <-  read_csv2("/Users/baltzingerphilippe/Downloads/smp2.csv")
+#Importation des données & chargement prettyR
+data<-satisfaction
+library(prettyR)
 
-smp1 %>% str()
-smp2 %>% str()
+#Traitement des variables catégorielles
+#Pour la clarté, les professions ne sont pas recodées.
+data$service <- factor(data$service, labels=c(paste('Serv.',seq(1:8),sep=" ")))
+data$sexe <- factor(data$sexe, labels=c('Homme','Femme'))
+data$profession <- factor(data$profession)
 
-summary(smp2$dur.interv)
+#Création des tableaux
+#Les professions non-déclarées sont concervées
+tab.service <- table(data$service, useNA="always")
+tab.sexe <- table(data$sexe, useNA="always")
+tab.prof <- table(data$profession, useNA="always")
 
-factor(table(smp2$n.fratrie >= 5),labels=c('<5', '5+'))
-factor(smp2$n.fratrie >= 5, labels=c('<5', '5+'))
-smp2$n.fratrie[smp2$n.fratrie < 5] <-'<5'
-smp2$n.fratrie[smp2$n.fratrie >= 5] <- '5+'
-smp2$n.fratrie
+#Réponse 1, arrondie à .00
+round(prop.table(tab.service)*100, 2)
+round(prop.table(tab.sexe)*100, 2)
+round(prop.table(tab.prof)*100, 2)
+#Pourcentages sans les NA
+round(prop.table(tab.prof[1:8])*100, 2)
 
+#Réponse 2
+data.num <- data[c(-1,-2,-4)]
+describe(data.num,num.desc=c("mean","median","sd","min","max","valid.n"))
 
-smp2 %>% select(ecole) %>% filter(ecole <4)
+#Réponse 3
+hist(data$score.relation, main="Histogramme du score de relation ", xlab="Score")
 
-smp2 %>% select(prof) %>% filter(prof == 'sans emploi')
-
-sum(table(smp2$prof))
-str(smp2)
-
-mean(smp2$age[1:10])
-median(smp2$dur.interv[1:300], na.rm = T)
+#Réponse 4
+boxplot(data$score.relation~data$sexe, main="Score de relation selon sexe", xlab="Sexe", ylab="Score")
