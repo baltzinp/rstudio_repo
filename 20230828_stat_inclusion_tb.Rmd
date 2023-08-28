@@ -1,0 +1,103 @@
+---
+title: "Survie pour TB"
+output: html_notebook
+author: "Philippe BALTZINGER"
+date: "2023/08/28"
+
+---
+
+```{r setup, include = FALSE}
+library(lubridate)
+library(readxl)
+library(broom)
+library(grid)
+library(gridExtra)
+library(cowplot)
+library(magrittr)
+library(viridis)
+library(ggpubr)
+library(janitor)
+library(kableExtra)
+library(rstatix)
+library(tidyverse)
+library(survminer)
+
+
+knitr::opts_chunk$set(comment=NA, prompt=FALSE, cache=FALSE, echo=FALSE, results='asis', warning = FALSE, message = FALSE)
+
+
+#constant
+# date_format="%d/%m/%Y"
+# cell_line=c("WT", "A4", "A23", "D16", "D45")
+# timepoint=c(24, 48, 72)
+# h_timepoint=c("H0", "H24", "H48", "H72")
+
+#plot modification
+plot_theme=theme_bw()+theme(title = element_text(size=18), axis.text = element_text(size=16), legend.text = element_text(size=16, face="bold"))
+
+theme_philippe = function (title_text_size = 12, axis_text_size = 10, legend_text_size = 10,
+                           legend_pos = "bottom"){
+  theme_bw() %+replace%
+    theme(
+      title = element_text(size=title_text_size), 
+      axis.text = element_text(size=axis_text_size), 
+      legend.text = element_text(size=legend_text_size, face="bold"), 
+      legend.position = legend_pos
+    )
+  
+}
+
+
+```
+
+```{r}
+
+
+data <- 
+read_xlsx("/Users/baltzingerphilippe/Documents/R studio/rstudio_repo/20230828_stat_inclusion_tb.xlsx", sheet = "Feuil2") %>% 
+  clean_names() %>% 
+  mutate(across(is.POSIXct, ymd))
+
+data
+
+```
+
+```{r}
+
+os_data <- 
+  data %>% 
+  mutate(old_time = as.double(difftime(old_us, ddn, days)), 
+         diagnostic_time = ifelse(is.na(diagnostic_inclusion), NA, as.double(difftime(diagnostic_us, ddn, days))), 
+         last_time = as.double(difftime(last_us, ddn, days)))
+
+os_data
+
+```
+
+```{r}
+
+fit <- survfit(Surv(old_time)~old_inclusion, data = os_data)
+
+ggsurvplot(fit, data = os_data, pval = TRUE)
+
+
+```
+
+```{r}
+
+fit <- survfit(Surv(last_time)~last_inclusion, data = os_data)
+
+ggsurvplot(fit, data = os_data, pval = TRUE)
+
+
+```
+
+```{r}
+
+fit <- survfit(Surv(diagnostic_time)~diagnostic_inclusion, data = os_data)
+
+ggsurvplot(fit, data = os_data, pval = TRUE)
+
+
+```
+
