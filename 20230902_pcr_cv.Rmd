@@ -1,0 +1,342 @@
+---
+title: "Stats pour CV "
+output: html_notebook
+author: "Philippe BALTZINGER"
+date: "2023/09/02"
+
+---
+
+```{r setup, include = FALSE}
+library(lubridate)
+library(readxl)
+library(broom)
+library(grid)
+library(gridExtra)
+library(cowplot)
+library(magrittr)
+library(viridis)
+library(ggpubr)
+library(janitor)
+library(kableExtra)
+library(rstatix)
+library(tidyverse)
+library(survminer)
+
+
+knitr::opts_chunk$set(comment=NA, prompt=FALSE, cache=FALSE, echo=FALSE, results='asis', warning = FALSE, message = FALSE)
+
+
+#constant
+# date_format="%d/%m/%Y"
+# cell_line=c("WT", "A4", "A23", "D16", "D45")
+# timepoint=c(24, 48, 72)
+# h_timepoint=c("H0", "H24", "H48", "H72")
+
+#plot modification
+plot_theme=theme_bw()+theme(title = element_text(size=18), axis.text = element_text(size=16), legend.text = element_text(size=16, face="bold"))
+
+theme_philippe = function (title_text_size = 12, axis_text_size = 10, legend_text_size = 10,
+                           legend_pos = "bottom"){
+  theme_bw() %+replace%
+    theme(
+      title = element_text(size=title_text_size), 
+      axis.text = element_text(size=axis_text_size), 
+      legend.text = element_text(size=legend_text_size, face="bold"), 
+      legend.position = legend_pos
+    )
+  
+}
+
+
+```
+
+# Voici les données brutes que j'ai utilisées
+
+La colonne cells correspond à la lignée exprimant le plasmide d'intérêt. \n
+La colonne primer correspond au primer utilisé pour la qPCR. \n
+La colonne rel_exp correspond à l'expression relative que tu as déterminée. \n
+La colonne rowid correspond à un tag unique pour cette valeur (qui permettra de la retrouver plus facilement).
+```{r}
+
+data <- 
+read_xlsx("/Users/baltzingerphilippe/Documents/R studio/rstudio_repo/20230902_pcr_cv.xlsx") %>% 
+  clean_names() %>% 
+  rowid_to_column()
+
+data
+
+
+```
+
+Je calcule ensuite les paramètres habituels : 
+
+
+```{r}
+summ_data <- 
+  data %>% 
+  group_by(primer, cells) %>% 
+  get_summary_stats(rel_exp, type = "common")
+
+summ_data
+
+```
+
+
+# Je visualise les données
+
+```{r include = FALSE}
+primers <- data$primer %>% unique()
+
+primers
+```
+
+Je regarde d'abord la dispersion des données
+
+```{r}
+
+map(primers, function(var = .x){
+  data %>% 
+    filter(primer == var) %>% 
+    ggplot(aes(cells, rel_exp, color = cells))+
+    geom_jitter()+
+    geom_boxplot(alpha = .2, width = .25)+
+    labs(title = str_c("Dispersion de l'expression de ", var, " mesurée par qPCR"))
+})
+
+```
+
+Puis je regarde les moyennes +/- sd
+
+```{r}
+map(primers, function(var = .x){
+  summ_data %>% 
+    filter(primer == var) %>% 
+    ggplot(aes(cells, mean, fill = cells))+
+    geom_col()+
+    geom_errorbar(aes(ymin = mean - sd, ymax = mean+sd, color = cells), width = .2, alpha = .6)+
+    labs(title = str_c("Moyenne de l'expression de ", var, " mesurée par qPCR"))
+})
+
+```
+
+On observe qu'il y a probablement plusieurs outliers 
+
+Je fais un test statistique pour déterminer les points extrêmes (sous Q1-3IQR ou au dessus de Q3+3IQR) et les outliers (sous Q1-1.5IQR ou au dessus de Q3+1.5IQR). En théorie, on garde les outliers mais on peut exclure les extrême car ils sont trop excessifs et vont fausser 
+
+```{r}
+data %>% 
+  group_by(primer, cells) %>% 
+  identify_outliers(rel_exp) %>% 
+  arrange(primer)
+
+
+```
+
+Je vais filtrer pour ne garder que les points extrême : 
+
+
+```{r}
+data %>% 
+  group_by(primer, cells) %>% 
+  identify_outliers(rel_exp) %>% 
+  arrange(primer) %>% 
+  filter(is.extreme == TRUE)
+```
+
+```{r include = FALSE}
+
+extreme <- c(7, 36, 25, 50, 92, 107, 104)
+
+```
+
+Je regarde à nouveau la dispersion des données en retirant les points extrême. 
+
+
+```{r}
+
+map(primers, function(var = .x){
+  data %>% 
+    filter(!rowid%in%extreme) %>% 
+    filter(primer == var) %>% 
+    ggplot(aes(cells, rel_exp, color = cells))+
+    geom_jitter()+
+    geom_boxplot(alpha = .2, width = .25)+
+    labs(title = str_c("Dispersion de l'expression de ", var, " mesurée par qPCR"), subtitle = "En retirant les points extrêmes")
+})
+
+```
+
+Je remarque que les points extrêmes sont surtout présents dans les distributions très resserées, sauf rowid = 7 (lignée bend, primer bend14)
+
+
+# Je fais alors les tests statistiques
+
+D'abord le kruskall sans retirer les extrêmes 
+
+```{r}
+
+data %>% 
+  group_by(primer) %>%
+  kruskal_test(rel_exp~cells) 
+  
+```
+
+Puis en retirant les extrêmes 
+```{r}
+
+data %>% 
+  group_by(primer) %>%
+  filter(!rowid%in%extreme) %>% 
+  kruskal_test(rel_exp~cells) 
+  
+```
+
+
+Je vois que la comparaison entre tous les groupes est significative pour chaque primer. 
+
+---
+
+Je fais un dunn test en gardant les extrêmes : 
+
+```{r}
+
+data %>% 
+  group_by(primer) %>%
+  dunn_test(rel_exp~cells) %>% 
+  arrange(primer, group2, p.adj)
+
+```
+
+Je te filtre que les significatifs(p<0.05)
+
+
+```{r}
+
+stat <- 
+data %>% 
+  group_by(primer) %>%
+  dunn_test(rel_exp~cells) %>% 
+  arrange(primer, p.adj) %>% 
+  filter(p.adj <0.05)
+  
+stat
+
+```
+
+
+---
+
+Puis un dunn test en retirant les extrêmes : 
+
+```{r}
+data %>% 
+  group_by(primer) %>%
+  filter(!rowid%in%extreme) %>% 
+  dunn_test(rel_exp~cells) %>% 
+  arrange(primer, p.adj)
+  
+```
+
+
+Je te filtre que les significatifs(p<0.05)
+
+
+```{r}
+data %>% 
+  group_by(primer) %>%
+  filter(!rowid%in%extreme) %>% 
+  dunn_test(rel_exp~cells) %>% 
+  arrange(primer, p.adj) %>% 
+  filter(p.adj <0.05)
+  
+```
+
+Je note qu'on ne perd qu'une seule comparaison, entre les lignées bend et mcherry dans le primer bend14 ... 
+
+# Je génère les graphes correspondants en gardant les valeurs extrêmes : 
+
+```{r include = FALSE}
+stat
+```
+
+
+```{r}
+
+summ_data %>%
+  filter(primer == primers[1]) %>% 
+  ggplot(aes(cells, mean))+
+  geom_col(width = .5, aes(fill = cells))+
+  geom_errorbar(aes(ymin = mean - se, ymax = mean +se, color = cells ), width = .2)+
+  stat_pvalue_manual(stat %>% filter(primer == primers[1]), size = 6, bracket.size = 0.8, y.position = c(1.5, 1.75, 2))+
+  labs(title = primers[1])
+
+```
+
+```{r}
+
+summ_data %>%
+  filter(primer == primers[2]) %>% 
+  ggplot(aes(cells, mean))+
+  geom_col(width = .5, aes(fill = cells))+
+  geom_errorbar(aes(ymin = mean - se, ymax = mean +se, color = cells ), width = .2)+
+  stat_pvalue_manual(stat %>% filter(primer == primers[2]), size = 6, bracket.size = 0.8, y.position = c(1.25, 1.5))+
+  labs(title = primers[2])
+
+```
+
+```{r}
+
+summ_data %>%
+  filter(primer == primers[3]) %>% 
+  ggplot(aes(cells, mean))+
+  geom_col(width = .5, aes(fill = cells))+
+  geom_errorbar(aes(ymin = mean - se, ymax = mean +se, color = cells ), width = .2)+
+  stat_pvalue_manual(stat %>% filter(primer == primers[3]), size = 6, bracket.size = 0.8, y.position = c(8.75, 8.25))+
+  labs(title = primers[3])
+
+```
+
+```{r}
+
+summ_data %>%
+  filter(primer == primers[4]) %>% 
+  ggplot(aes(cells, mean))+
+  geom_col(width = .5, aes(fill = cells))+
+  geom_errorbar(aes(ymin = mean - se, ymax = mean +se, color = cells ), width = .2)+
+  stat_pvalue_manual(stat %>% filter(primer == primers[4]), size = 6, bracket.size = 0.8, y.position = c(210))+
+  labs(title = primers[4])
+
+```
+
+```{r}
+
+summ_data %>%
+  filter(primer == primers[5]) %>% 
+  ggplot(aes(cells, mean))+
+  geom_col(width = .5, aes(fill = cells))+
+  geom_errorbar(aes(ymin = mean - se, ymax = mean +se, color = cells ), width = .2)+
+  stat_pvalue_manual(stat %>% filter(primer == primers[5]), size = 6, bracket.size = 0.8, y.position = c(3000, 3500))+
+  labs(title = primers[5])
+
+```
+
+## Je fais un wilcoxon en prenant comme groupe de référence mCherry 
+```{r}
+
+data %>% 
+  group_by(primer) %>% 
+  wilcox_test(rel_exp ~ cells, ref.group = "mCherry")
+
+```
+Je te garde les significatifs 
+
+```{r}
+
+data %>% 
+  group_by(primer) %>% 
+  wilcox_test(rel_exp ~ cells, ref.group = "mCherry") %>% 
+  filter(p.adj<0.05)
+
+```
+
+Au final on s'en sort tout juste en faisant un wilcoxon. Ce qui nous met dedant c'est l'ajustement en raison des tests multiples. Mes compétences statistiques ne vont pas assez loin pour savoir si on peut garder uniquement le p ou s'il faut impérativement rester au p.adj
