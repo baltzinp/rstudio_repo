@@ -50,9 +50,265 @@ theme_philippe = function (title_text_size = 12, axis_text_size = 10, legend_tex
 
 
 ```
-```{r}
 
+
+```{r}
+#J'extrais les variables biologiques et classe les timepoints dans l'ordre chronologique
+biological_data_names <- c("creat", "hiaa", "dfg", "hb", "plq", "lymphocyte", "asat", "alat", "ggt", "bili", "cga")
+timepoint_levels <- c("diagnostic", "pre", "riv","c1_1m", "c1c2", "c2_1m","c2c3","c3_1m", "c3c4", "post_c4", "m4", "m8", "m12", "m18", "m24", "m30", "m36", "m42", "dnn")
+sheet_names <-  c("patient", "tumeur", "traitement", "bio_before", "bio_between", "dnn")
 
 
 ```
+
+
+```{r include = FALSE}
+
+
+data <- 
+map(sheet_names, function(var = .x){
+  
+  read_xlsx("/Volumes/EXTENSION_MACMI/Analyses R/these_cedric_collen/20240829_bdd_cc.xlsx", sheet = var, na = c("", "NA", "NC", "nc", "na")) %>% 
+    janitor::clean_names() %>% 
+    select(-contains("_rq")) %>% 
+    arrange(code)
+  
+}) %>% 
+  reduce(inner_join, by = "code")
+
+```
+
+```{r include = FALSE}
+
+data
+
+
+```
+```{r include = FALSE}
+
+survive <- read_tsv("/Volumes/EXTENSION_MACMI/Analyses R/these_cedric_collen/20240910_of_pfs_data.tsv")
+
+survive
+
+```
+
+```{r}
+
+code <- 
+read_xlsx("/Volumes/EXTENSION_MACMI/Analyses R/rstudio_repo/20240926_liste_id.xlsx", sheet = "code") %>% 
+  janitor::clean_names()
+
+```
+
+```{r include = FALSE}
+data_filter <- 
+left_join(code, data, by = "code") %>% 
+  filter(!is.na(diagnostic))
+
+data_filter
+
+```
+
+
+
+```{r}
+metabo_wide <- 
+map(c("foie", "os", "peritoine", "ganglion"), function(var = .x){
+  
+  read_xlsx("/Volumes/EXTENSION_MACMI/Analyses R/rstudio_repo/20240927_donnees_metaboliques_philippe.xlsx", sheet = var, na = c("", "NA", "NC", "nc", "na")) %>% 
+    janitor::clean_names() 
+  
+}) %>% 
+  bind_rows()
+  
+
+metabo_long <- 
+  metabo_wide %>% 
+  pivot_longer(!matches("id|site"), names_to = "tep", values_to = "value") %>% 
+  separate_wider_regex(tep, c(tep = "tep_[[:digit:]]|mtv|site", "_", parametre = ".*"), too_few = "align_start")
+
+```
+
+```{r include = FALSE}
+metabo_wide
+```
+
+
+```{r include = FALSE}
+metabo_long
+```
+
+# J'analyse la distribution des différents paramètres 
+
+## Sur les valeurs mesurées
+
+```{r}
+
+metabo_long %>% 
+  filter(parametre == "suv_peak") %>% 
+  ggplot(aes(tep, value, fill = tep)) +
+  geom_boxplot(alpha = .25, outlier.shape = NA)+
+  geom_jitter(width = .2, height = .2, aes(color = tep))+
+  facet_grid(~site)+
+  labs(title = "Distribution des SUV peak")+
+  theme_philippe()
+
+```
+
+```{r}
+
+metabo_long %>% 
+  filter(parametre == "mtv1") %>% 
+  ggplot(aes(tep, value, fill = tep)) +
+  geom_boxplot(alpha = .25, outlier.shape = NA)+
+  geom_jitter(width = .2, height = .2, aes(color = tep))+
+  facet_grid(~site)+
+  labs(title = "Distribution des MTV1")+
+  theme_philippe()
+
+```
+
+```{r}
+
+metabo_long %>% 
+  filter(parametre == "mtv1") %>% 
+  ggplot(aes(tep, value, fill = tep)) +
+  geom_boxplot(alpha = .25, outlier.shape = NA)+
+  geom_jitter(width = .2, height = .2, aes(color = tep))+
+  facet_grid(~site)+
+  scale_y_continuous(trans ="log")+
+  labs(title = "Distribution des log(MTV1)", y = "log")+
+  theme_philippe()
+
+```
+
+```{r}
+
+metabo_long %>% 
+  filter(parametre == "mtv2" & site == "foie") %>% 
+  ggplot(aes(tep, value, fill = tep)) +
+  geom_boxplot(alpha = .25, outlier.shape = NA)+
+  geom_jitter(width = .2, height = .2, aes(color = tep))+
+  facet_grid(~site)+
+  #scale_y_continuous(trans = "log")+
+  labs(title = "Distribution des MTV2")+
+  theme_philippe()
+
+```
+
+```{r}
+
+metabo_long %>% 
+  filter(parametre == "mtv2" & site == "foie") %>% 
+  ggplot(aes(tep, value, fill = tep)) +
+  geom_boxplot(alpha = .25, outlier.shape = NA)+
+  geom_jitter(width = .2, height = .2, aes(color = tep))+
+  facet_grid(~site)+
+  scale_y_continuous(trans = "log")+
+  labs(title = "Distribution des MTV2", y = "log")+
+  theme_philippe()
+
+```
+
+## sur les index 
+
+```{r}
+metabo_long %>% 
+  filter(tep == "mtv") %>% 
+  ggplot(aes(parametre, value, fill = parametre)) +
+  geom_boxplot(alpha = .25, outlier.shape = NA)+
+  geom_jitter(width = .2, height = .2, aes(color = parametre))+
+  facet_grid(~site)+
+  #scale_y_continuous(trans = "log")+
+  labs(title = "Distribution des index MTV")+
+  theme_philippe()
+
+```
+```{r}
+metabo_long %>% 
+  filter(tep == "mtv") %>% 
+  ggplot(aes(parametre, value, fill = parametre)) +
+  geom_boxplot(alpha = .25, outlier.shape = NA)+
+  geom_jitter(width = .2, height = .2, aes(color = parametre))+
+  facet_grid(~site)+
+  scale_y_continuous(trans = "log")+
+  labs(title = "Distribution des log(index MTV)", y = "log")+
+  theme_philippe()+
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+
+```
+
+# J'analyse les données métaboliques en fonction des caractéristiques tumorales 
+
+Je suis obligé d'exclure 6 patients pour lesquels je n'ai pas de données cliniques (TNE non grêles).
+
+```{r}
+
+left_join( code, data, by = "code") %>% 
+  filter(is.na(diagnostic))
+
+```
+
+```{r include = FALSE}
+
+metabo_survival <- 
+left_join(code, survive, by = "code") %>% 
+  left_join(metabo_wide, by = "id")
+
+metabo_survival
+```
+
+```{r}
+
+metabo_summarized <- 
+
+metabo_wide %>% 
+  group_by(site, id) %>% 
+  get_summary_stats(matches("tep")) %>% 
+  select(id, site, variable, mean, median) %>% 
+  pivot_wider(names_from = variable, values_from = c("mean", "median"))
+
+metabo_summarized
+```
+
+
+```{r}
+metabo_summarized%>% 
+  left_join(code, by = "id") %>% 
+  left_join(survive, by = "code") %>% 
+  filter(site == "foie") %>% 
+finalfit(
+  dependent = "Surv(event = progression_event, time = pfs_riv_1)", 
+  explanatory = c("mean_tep_4_suv_peak", "mean_tep_4_mtv1", "mean_tep_4_mtv2", "mean_tep_0_suv_peak", "mean_tep_0_mtv1", "mean_tep_0_mtv2", "mean_tep_2_suv_peak", "mean_tep_2_mtv1", "mean_tep_2_mtv_2", "mean_mtv_tep2_tep0", "mean_mtv_tep4_tep0", "mean_mtv_tep4_tep2"), 
+  metrics = TRUE
+)
+
+```
+
+```{r}
+metabo_summarized%>% 
+  left_join(code, by = "id") %>% 
+  left_join(survive, by = "code") %>% 
+  filter(site == "foie") %>% 
+finalfit(
+  dependent = "Surv(event = progression_event, time = pfs_riv_1)", 
+  explanatory = c("median_tep_4_suv_peak", "median_tep_4_mtv1", "median_tep_4_mtv2", "median_tep_0_suv_peak", "median_tep_0_mtv1", "median_tep_0_mtv2", "median_tep_2_suv_peak", "median_tep_2_mtv1", "median_tep_2_mtv_2", "median_mtv_tep2_tep0", "median_mtv_tep4_tep0", "median_mtv_tep4_tep2"), 
+  metrics = TRUE
+)
+
+```
+
+```{r}
+metabo_summarized%>% 
+  left_join(code, by = "id") %>% 
+  left_join(survive, by = "code") %>% 
+  filter(site == "foie") %>% 
+  filter(id == 32)
+  filter(is.na(progression))
+```
+
+
+
+
+
 
