@@ -1,0 +1,546 @@
+---
+title: "Analyse de la survie en fonction des données métaboliques dans les TNE iléales"
+output: html_notebook
+author: "Philippe BALTZINGER"
+date: "2024/09/29"
+
+---
+
+```{r setup, include = FALSE}
+library(lubridate)
+library(readxl)
+library(broom)
+library(grid)
+library(gridExtra)
+library(cowplot)
+library(magrittr)
+library(viridis)
+library(ggpubr)
+library(janitor)
+library(kableExtra)
+library(rstatix)
+library(gtsummary)
+library(finalfit)
+library(survival)
+library(survminer)
+library(flextable)
+library(tidyverse)
+
+
+knitr::opts_chunk$set(comment=NA, prompt=FALSE, cache=FALSE, echo=FALSE, results='asis', warning = FALSE, message = FALSE)
+
+
+#constant
+# date_format="%d/%m/%Y"
+# cell_line=c("WT", "A4", "A23", "D16", "D45")
+# timepoint=c(24, 48, 72)
+# h_timepoint=c("H0", "H24", "H48", "H72")
+
+#plot modification
+plot_theme=theme_bw()+theme(title = element_text(size=18), axis.text = element_text(size=16), legend.text = element_text(size=16, face="bold"))
+
+theme_philippe = function (title_text_size = 12, axis_text_size = 10, legend_text_size = 10,
+                           legend_pos = "bottom"){
+  theme_bw() %+replace%
+    theme(
+      title = element_text(size=title_text_size), 
+      axis.text = element_text(size=axis_text_size), 
+      legend.text = element_text(size=legend_text_size, face="bold"), 
+      legend.position = legend_pos
+    )
+  
+}
+
+
+```
+
+
+```{r}
+#J'extrais les variables biologiques et classe les timepoints dans l'ordre chronologique
+biological_data_names <- c("creat", "hiaa", "dfg", "hb", "plq", "lymphocyte", "asat", "alat", "ggt", "bili", "cga")
+timepoint_levels <- c("diagnostic", "pre", "riv","c1_1m", "c1c2", "c2_1m","c2c3","c3_1m", "c3c4", "post_c4", "m4", "m8", "m12", "m18", "m24", "m30", "m36", "m42", "dnn")
+sheet_names <-  c("patient", "tumeur", "traitement", "bio_before", "bio_between", "dnn")
+
+
+```
+
+
+```{r include = FALSE}
+
+
+data <- 
+map(sheet_names, function(var = .x){
+  
+  read_xlsx("/Volumes/EXTENSION_MACMI/Analyses R/these_cedric_collen/20240829_bdd_cc.xlsx", sheet = var, na = c("", "NA", "NC", "nc", "na")) %>% 
+    janitor::clean_names() %>% 
+    select(-contains("_rq")) %>% 
+    arrange(code)
+  
+}) %>% 
+  reduce(inner_join, by = "code")
+
+```
+
+```{r include = FALSE}
+
+data
+
+
+```
+```{r include = FALSE}
+
+survive <- read_tsv("/Volumes/EXTENSION_MACMI/Analyses R/these_cedric_collen/20240910_of_pfs_data.tsv")
+
+survive
+
+```
+
+```{r}
+
+code <- 
+read_xlsx("/Volumes/EXTENSION_MACMI/Analyses R/rstudio_repo/20240926_liste_id.xlsx", sheet = "code") %>% 
+  janitor::clean_names()
+
+```
+
+```{r include = FALSE}
+data_filter <- 
+left_join(code, data, by = "code") %>% 
+  filter(!is.na(diagnostic))
+
+data_filter
+
+```
+
+```{r include = FALSE}
+label_metabo <- 
+  read_xlsx("20240928_label_metabo.xlsx")
+
+label_metabo
+```
+
+
+
+```{r}
+metabo_wide <- 
+map(c("foie", "os", "peritoine", "ganglion"), function(var = .x){
+  
+  read_xlsx("/Volumes/EXTENSION_MACMI/Analyses R/rstudio_repo/20240927_donnees_metaboliques_philippe.xlsx", sheet = var, na = c("", "NA", "NC", "nc", "na")) %>% 
+    janitor::clean_names() 
+  
+}) %>% 
+  bind_rows()
+  
+
+metabo_long <- 
+  metabo_wide %>% 
+  pivot_longer(!matches("id|site"), names_to = "tep", values_to = "value") %>% 
+  separate_wider_regex(tep, c(tep = "tep_[[:digit:]]|mtv|site", "_", parametre = ".*"), too_few = "align_start")
+
+```
+
+```{r include = FALSE}
+metabo_wide
+```
+
+
+```{r include = FALSE}
+metabo_long
+```
+
+```{r include = FALSE}
+
+metabo_survival <- 
+left_join(code, survive, by = "code") %>% 
+  left_join(metabo_wide, by = "id") %>% 
+    filter(!is.na(progression))
+
+
+metabo_survival %>% select(dead)
+```
+
+```{r include = FALSE}
+
+metabo_summarized <- 
+
+metabo_wide %>% 
+  group_by(site, id) %>% 
+  get_summary_stats(matches("tep")) %>% 
+  select(id, site, variable, n, mean, median) %>% 
+  pivot_wider(names_from = variable, values_from = c("mean", "median"))
+
+metabo_summarized
+
+```
+
+
+```{r}
+metabo_long_summarized <- 
+metabo_long %>% 
+  group_by(id, site, tep, parametre) %>% 
+  get_summary_stats(value, type = "common")
+```
+
+```{r include = FALSE}
+
+metabo_long_sum <- 
+  metabo_long %>% 
+  group_by(id, site, tep, parametre) %>% 
+  summarise(sum_cibles= sum(value), 
+            moyenne_cibles = mean(value))
+
+metabo_long_sum
+```
+
+```{r include = FALSE}
+
+metabo_index <- 
+metabo_long_sum %>% 
+  select(-moyenne_cibles) %>% 
+  pivot_wider(names_from = c(tep, parametre), values_from = sum_cibles) %>% 
+  mutate(index_4_0 = ifelse(site == "foie", (tep_4_mtv2-tep_0_mtv2)/tep_0_mtv2, (tep_4_mtv1-tep_0_mtv1)/tep_0_mtv1), 
+         index_4_2 = ifelse(site == "foie", (tep_4_mtv2-tep_2_mtv2)/tep_2_mtv2, (tep_4_mtv1-tep_2_mtv1)/tep_2_mtv1),
+         index_2_0 = ifelse(site == "foie", (tep_2_mtv2-tep_0_mtv2)/tep_0_mtv2, (tep_2_mtv1-tep_0_mtv1)/tep_0_mtv1), 
+         index_suv_4_0 = (tep_4_suv_peak-tep_0_suv_peak)/tep_0_suv_peak, 
+         index_suv_4_2 = (tep_4_suv_peak-tep_2_suv_peak)/tep_2_suv_peak, 
+         index_suv_2_0 = (tep_2_suv_peak-tep_0_suv_peak)/tep_0_suv_peak) %>% 
+  select(matches("index"), id, site)
+
+
+metabo_index
+
+survival_index <- 
+  metabo_index %>% 
+  left_join(code, by = "id") %>% 
+  left_join(survive, by = "code") %>% 
+  filter(!is.na(progression))
+
+survival_index
+
+```
+
+```{r include = FALSE}
+
+survival_data <- 
+metabo_long_sum %>% 
+  left_join(code, by = "id") %>% 
+  left_join(survive, by = "code") %>% 
+  filter(!is.na(progression)) %>% 
+  pivot_wider(names_from = c(tep, parametre), values_from = c(sum_cibles, moyenne_cibles)) %>% 
+  left_join(survival_index)
+
+
+survival_data
+
+```
+
+# J'analyse la survie avec un modèle de COX 
+
+```{r include = FALSE}
+
+explanatory_sum <- 
+label_metabo %>% 
+  select(label_survie_all) %>% 
+  filter(str_detect(label_survie_all, "sum")) %>% 
+  as_vector()
+
+explanatory_sum
+
+explanatory_mean <- 
+label_metabo %>% 
+  select(label_survie_all) %>% 
+  filter(str_detect(label_survie_all, "moy")) %>% 
+  as_vector()
+
+explanatory_mean
+
+explanatory_all <- 
+label_metabo %>% 
+  select(label_survie_all) %>% 
+  as_vector()
+
+explanatory_all
+
+explanatory_selected <- 
+label_metabo %>% 
+  select(label_survie_selected) %>% 
+  filter(!is.na(label_survie_selected)) %>% 
+  as_vector()
+
+explanatory_selected
+
+explanatory_index <- 
+label_metabo %>% 
+  select(label_survie_index) %>% 
+  filter(!is.na(label_survie_index)) %>% 
+  as_vector()
+
+explanatory_index
+
+
+```
+
+Je ne prends que les patients pour lesquels j'ai la donnée clinique concernant la progression.\ 
+Je ne peux pas faire un modèle de COX en prenant chaque lésion unique puisque chaque patient (un évènement progression ou mort) peut être caractérisé par plusieurs lésions.\
+Je n'inclus donc dans les modèles que les données résumées (moyennes de SUV et sommes de MTV et FC). 
+
+## d'abord pour la PFS 
+
+```{r}
+
+dependent_pfs <- "Surv(time = pfs_riv_1, event= progression_event)"
+
+```
+
+
+Je fais un modèle de cox sur les moyennes de SUV et les sommes de MTV ainsi que les index uniquement.
+
+Pour le foie, d'abord les valeurs uniques
+```{r}
+
+survival_data %>% 
+  filter(site == "foie") %>% 
+  finalfit(
+    dependent = dependent_pfs, 
+    explanatory = explanatory_selected, 
+    metrics = TRUE) %>% kable()
+
+
+```
+Puis les fold change
+```{r}
+
+survival_data %>% 
+  filter(site == "foie") %>% 
+  finalfit(
+    dependent = dependent_pfs, 
+    explanatory = explanatory_index, 
+    metrics = TRUE) %>% kable()
+
+```
+
+
+
+```{r include = FALSE }
+survival_data %>% 
+  filter(site == "foie") %>% 
+coxphmulti(dependent_pfs, explanatory_selected) %>% 
+    cox.zph() %>% 
+    {zph_result <<- .} %>% 
+    plot(var=5)
+
+zph_result
+```
+
+
+Pour l'os, les valeurs uniques : 
+```{r}
+survival_data %>% 
+  filter(site == "os") %>% 
+  finalfit(
+    dependent = dependent_pfs, 
+    explanatory = explanatory_selected[-c(2,4,6)], 
+    metrics = TRUE) %>% kable()
+```
+
+Puis les Fold Change : 
+```{r}
+survival_data %>% 
+  filter(site == "os") %>% 
+  finalfit(
+    dependent = dependent_pfs, 
+    explanatory = explanatory_index, 
+    metrics = TRUE) %>% kable()
+```
+
+
+Pour les ganglions :
+```{r}
+survival_data %>% 
+  filter(site == "ganglion") %>% 
+  finalfit(
+    dependent = dependent_pfs, 
+    explanatory = explanatory_selected[-c(2,4,6)], 
+    metrics = TRUE) %>% kable()
+```
+
+Puis les Fold Change : 
+
+```{r}
+survival_data %>% 
+  filter(site == "ganglion") %>% 
+  finalfit(
+    dependent = dependent_pfs, 
+    explanatory = explanatory_index, 
+    metrics = TRUE) %>% kable()
+```
+
+
+Pour le péritoine, les valeurs ponctuelles : 
+```{r}
+survival_data %>% 
+  filter(site == "peritoine") %>% 
+  finalfit(
+    dependent = dependent_pfs, 
+    explanatory = explanatory_selected[-c(2,4,6)], 
+    metrics = TRUE) %>% kable()
+```
+
+Puis les Fold Change : 
+```{r}
+survival_data %>% 
+  filter(site == "peritoine") %>% 
+  finalfit(
+    dependent = dependent_pfs, 
+    explanatory = explanatory_index, 
+    metrics = TRUE) %>% kable()
+```
+
+Aucun item n'influe sur le risque de récidive en univarié. Les analyses multivariés sont donc ininterprétables. 
+
+## Je fais la même chose pour le décès 
+
+
+Je fais un modèle de cox sur les moyennes de SUV et les sommes de MTV ainsi que les index uniquement.
+
+```{r}
+
+dependent_os <- "Surv(time = os_riv_1, event= dead_event)"
+
+```
+
+
+Pour le foie, d'abord les valeurs uniques
+```{r}
+
+survival_data %>% 
+  filter(site == "foie") %>% 
+  finalfit(
+    dependent = dependent_os, 
+    explanatory = explanatory_selected, 
+    metrics = TRUE) %>% kable()
+
+
+```
+Puis les fold change
+```{r}
+
+survival_data %>% 
+  filter(site == "foie") %>% 
+  finalfit(
+    dependent = dependent_os, 
+    explanatory = explanatory_index, 
+    metrics = TRUE) %>% kable()
+
+```
+
+
+
+```{r include = FALSE }
+survival_data %>% 
+  filter(site == "foie") %>% 
+coxphmulti(dependent_os, explanatory_index) %>% 
+    cox.zph() %>% 
+    {zph_result <<- .} %>% 
+    plot(var=5)
+```
+
+
+```{r include = FALSE }
+zph_result
+```
+
+
+Pour l'os, les valeurs uniques : 
+```{r}
+survival_data %>% 
+  filter(site == "os") %>% 
+  finalfit(
+    dependent = dependent_os, 
+    explanatory = explanatory_selected[-c(2,4,6)], 
+    metrics = TRUE) %>% kable()
+```
+
+Puis les Fold Change : 
+```{r}
+survival_data %>% 
+  filter(site == "os") %>% 
+  finalfit(
+    dependent = dependent_os, 
+    explanatory = explanatory_index, 
+    metrics = TRUE) %>% kable()
+```
+
+
+Pour les ganglions les valeurs uniques :
+```{r}
+survival_data %>% 
+  filter(site == "ganglion") %>% 
+  finalfit(
+    dependent = dependent_os, 
+    explanatory = explanatory_selected[-c(2,4,6)], 
+    metrics = TRUE) %>% kable()
+```
+
+Puis les Fold Change : 
+```{r}
+survival_data %>% 
+  filter(site == "ganglion") %>% 
+  finalfit(
+    dependent = dependent_os, 
+    explanatory = explanatory_index, 
+    metrics = TRUE) %>% kable()
+```
+
+
+Pour le péritoine, les valeurs ponctuelles : 
+```{r}
+survival_data %>% 
+  filter(site == "peritoine") %>% 
+  finalfit(
+    dependent = dependent_os, 
+    explanatory = explanatory_selected[-c(2,4,6)], 
+    metrics = TRUE) %>% kable()
+```
+
+Puis les Fold Change : 
+```{r}
+survival_data %>% 
+  filter(site == "peritoine") %>% 
+  finalfit(
+    dependent = dependent_os, 
+    explanatory = explanatory_index, 
+    metrics = TRUE) %>% kable()
+```
+
+Le seul item qui influe sur la survie est le fold change de la SUV peak TEP 2/0 sur les lésions hépatiques : une augmentation du fold change est associé à une baisse du risque de décès. Mais cet item n'est plus significativement associé en analyse multivariée. 
+
+
+
+# Avec un log rank 
+
+Je définis des catégories de patients et je regarde si la PFS ou l'OS sont associés à un niveau de SUV ou un volume tumoral plus ou moins important. 
+
+```{r include = FALSE}
+
+survival_data %>% 
+  select(explanatory_index)
+
+
+
+```
+
+
+```{r}
+```
+
+
+
+
+
+```{r}
+mykable = function(x){
+    kableExtra::kable(x, row.names = FALSE, align = c("l", "l", "r", "r", "r", "r", "r", "r", "r"), format = "html")
+}
+```
+

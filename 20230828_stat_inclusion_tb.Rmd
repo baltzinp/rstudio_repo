@@ -21,7 +21,7 @@ library(kableExtra)
 library(rstatix)
 library(tidyverse)
 library(survminer)
-
+library(survival)
 
 knitr::opts_chunk$set(comment=NA, prompt=FALSE, cache=FALSE, echo=FALSE, results='asis', warning = FALSE, message = FALSE)
 
@@ -54,11 +54,19 @@ theme_philippe = function (title_text_size = 12, axis_text_size = 10, legend_tex
 
 
 data <- 
-read_xlsx("/Users/baltzingerphilippe/Documents/R studio/rstudio_repo/20230828_stat_inclusion_tb.xlsx", sheet = "Feuil2") %>% 
+#read_xlsx("/Users/baltzingerphilippe/Documents/R studio/rstudio_repo/20230828_stat_inclusion_tb.xlsx", sheet = "Feuil2") %>% 
+read_xlsx("/Volumes/EXTENSION_MACMI/Analyses R/rstudio_repo/20230828_stat_inclusion_tb.xlsx", sheet = "Feuil2") %>% 
   clean_names() %>% 
   mutate(across(is.POSIXct, ymd))
 
 data
+
+final_data <- 
+read_xlsx("/Volumes/EXTENSION_MACMI/Analyses R/rstudio_repo/20230828_stat_inclusion_tb.xlsx", sheet = "final") %>% 
+  clean_names() %>% 
+  mutate(across(is.POSIXct, ymd))
+
+final_data
 
 ```
 
@@ -66,28 +74,60 @@ data
 
 os_data <- 
   data %>% 
-  mutate(old_time = as.double(difftime(old_us, ddn, days)), 
+  mutate(old_time = as.double(difftime(old_us, ddn))/365, 
          diagnostic_time = ifelse(is.na(diagnostic_inclusion), NA, as.double(difftime(diagnostic_us, ddn, days))), 
-         last_time = as.double(difftime(last_us, ddn, days)))
+         last_time = as.double(difftime(last_us, ddn))/365) %>% 
+  arrange(old_time)
 
 os_data
 
+os_final_data <- 
+  final_data %>% 
+  mutate(time = as.double(difftime(diagnostic_us, ddn))/365) %>% 
+  rename(TART = "inclusion")
+  
+os_final_data
+
+
 ```
 
 ```{r}
 
-fit <- survfit(Surv(old_time)~old_inclusion, data = os_data)
+fit_final <- survfit(Surv(time, TART)~TART, data = os_final_data)
 
-ggsurvplot(fit, data = os_data, pval = TRUE)
+ggsurvplot(fit_final, data = os_final_data, pval = TRUE, risk.table = TRUE, palette = c("blue", "red"), risk.table.height = 0.3)+
+  labs(title = "Âge à la première échographie", x = "Âge (années)", y = "Probabilité de l'évènement")
+  
+
+
+```
+```{r}
+
+
+ggsurvplot(fit_final, data = os_final_data, pval = TRUE, palette = c("blue", "red"))+
+  labs(title = "Âge à la première échographie", x = "Âge (années)", y = "Probabilité de l'évènement")
+  
 
 
 ```
 
 ```{r}
 
-fit <- survfit(Surv(last_time)~last_inclusion, data = os_data)
+fit_old <- survfit(Surv(old_time, old_inclusion)~old_inclusion, data = os_data)
 
-ggsurvplot(fit, data = os_data, pval = TRUE)
+ggsurvplot(fit_old, data = os_data, pval = TRUE)+
+  labs(title = "Âge à la première échographie", x = "Âge (années)", y = "Probabilité de l'évènement")
+  
+
+
+```
+
+```{r}
+
+fit_last <- survfit(Surv(last_time)~last_inclusion, data = os_data)
+
+ggsurvplot(fit_last, data = os_data, pval = TRUE)#+
+    labs(title = "Âge à l'échographie")
 
 
 ```
@@ -98,6 +138,12 @@ fit <- survfit(Surv(diagnostic_time)~diagnostic_inclusion, data = os_data)
 
 ggsurvplot(fit, data = os_data, pval = TRUE)
 
+
+```
+
+```{r}
+
+difftime(ymd("2022/12/01"), ymd("2020/10/05"))
 
 ```
 
