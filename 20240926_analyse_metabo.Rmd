@@ -772,25 +772,6 @@ metabo_long_sum %>%
 
 
 
-
-
-
-```{r}
-
-metabo_long_sum %>% 
-  left_join(code, by = "id") %>% 
-  left_join(survive, by = "code") %>% 
-  filter(str_detect(parametre, "mtv")) #%>% 
-  ggplot(aes(tep, moyenne_cibles))+
-  geom_boxplot(aes(fill = tep), alpha = .25)+
-  geom_jitter(aes(color = tep), width = .2, height = .2)+
-  facet_grid(~site)+
-  stat_compare_means()+
-  labs()+
-  theme_philippe()
-
-```
-
 # J'analyse les données métaboliques en fonction des caractéristiques tumorales 
 
 
