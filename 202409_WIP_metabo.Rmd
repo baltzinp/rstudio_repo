@@ -63,3 +63,54 @@ label_metabo %>% select(label_brut) %>% filter(!is.na(label_brut)) %>% as_vector
 bar %>% as_vector()
 ```
 
+
+```{r}
+
+metabo_survival %>% 
+  finalfit_glimpse()
+
+```
+
+```{r}
+
+metabo_summarized_survival %>% 
+  finalfit_glimpse()
+
+```
+
+```{r}
+
+survival_data <- 
+metabo_long_sum %>% 
+  left_join(code, by = "id") %>% 
+  left_join(survive, by = "code") %>% 
+  filter(!is.na(progression)) %>% 
+  pivot_wider(names_from = c(tep, parametre), values_from = c(sum_cibles, moyenne_cibles))
+
+
+```
+
+```{r}
+
+
+survival_data %>% 
+  colnames() %>% 
+  tibble() %>% 
+  write_tsv("20240929_colnames_survival.tsv")
+
+
+```
+
+
+
+```{r}
+survive
+```
+
+
+```{r}
+survival_index
+
+```
+
+

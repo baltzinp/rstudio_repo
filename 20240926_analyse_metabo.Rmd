@@ -190,7 +190,7 @@ metabo_long_sum <-
 metabo_long_sum
 ```
 
-```{r}
+```{r include = FALSE }
 
 metabo_index <- 
 metabo_long_sum %>% 
@@ -207,7 +207,31 @@ metabo_long_sum %>%
 
 metabo_index
 
+
+survival_index <- 
+  metabo_index %>% 
+  left_join(code, by = "id") %>% 
+  left_join(survive, by = "code") %>% 
+  filter(!is.na(progression))
+
+survival_index
 ```
+
+```{r include = FALSE}
+
+survival_data <- 
+metabo_long_sum %>% 
+  left_join(code, by = "id") %>% 
+  left_join(survive, by = "code") %>% 
+  filter(!is.na(progression)) %>% 
+  pivot_wider(names_from = c(tep, parametre), values_from = c(sum_cibles, moyenne_cibles)) %>% 
+  left_join(survival_index)
+
+
+survival_data
+
+```
+
 
 # J'analyse la distribution des différents paramètres 
 
@@ -306,36 +330,10 @@ metabo_long %>%
 
 ```
 
-## J'analyse les index 
 
-```{r}
-metabo_long %>% 
-  filter(tep == "mtv") %>% 
-  ggplot(aes(parametre, value, fill = parametre)) +
-  geom_boxplot(alpha = .25, outlier.shape = NA)+
-  geom_jitter(width = .2, height = .2, aes(color = parametre))+
-  facet_grid(~site)+
-  #scale_y_continuous(trans = "log")+
-  labs(title = "Distribution des index MTV")+
-  theme_philippe()
+## J'analyse les données métaboliques moyennes/sommes
 
-```
-```{r}
-metabo_long %>% 
-  filter(tep == "mtv") %>% 
-  ggplot(aes(parametre, value, fill = parametre)) +
-  geom_boxplot(alpha = .25, outlier.shape = NA)+
-  geom_jitter(width = .2, height = .2, aes(color = parametre))+
-  facet_grid(~site)+
-  scale_y_continuous(trans = "log")+
-  labs(title = "Distribution des log(index MTV)", y = "log")+
-  theme_philippe()+
-  theme(axis.text.x = element_text(angle = 30, hjust = 1))
-
-```
-# J'analyse les données métaboliques moyennes/sommes
-
-## Je fais les moyennes de SUV et de MTV
+### Je fais les moyennes de SUV et de MTV
 
 
 
@@ -409,7 +407,7 @@ metabo_long_summarized %>%
 ```
 
 
-## Je fais les sommes de SUV et MTV
+### Je fais les sommes de SUV et MTV
 
 ```{r}
 
@@ -482,10 +480,10 @@ metabo_long_sum %>%
 
 ## J'analyse le fold change 
 
-Je fais les fold change suivant : 
-4/0 = (tep 4 - tep 0) /tep 0
-2/0 = (tep 2 - tep 0) /tep 0
-4/2 = (tep 4 - tep 2) /tep 2
+Je fais les fold change suivant :\
+4/0 = (tep 4 - tep 0) /tep 0\
+2/0 = (tep 2 - tep 0) /tep 0\
+4/2 = (tep 4 - tep 2) /tep 2\
 
 
 ```{r}
@@ -537,7 +535,7 @@ metabo_index %>%
 ```
 
 
-# J'analyse les données métaboliques en fonction de la progression ou de la mort
+# J'analyse les données métaboliques en fonction de la progression
 Je suis obligé d'exclure 6 patients pour lesquels je n'ai pas de données cliniques (TNE non grêles).
 
 ```{r}
@@ -549,9 +547,9 @@ left_join( code, data, by = "code") %>%
 
 ## d'abord les données brutes 
 
-### Je compare la distribution entre les données brutes (SUV peak et MTV) selon la progression ou non et par site. Pour MTV je présente les données non transformées et après transformation en log. 
+Je compare la distribution entre les données brutes (SUV peak et MTV) selon la progression ou non et par site. Pour MTV je présente les données non transformées et après transformation en log. 
 
-```{r}
+```{r echo = FALSE, results = FALSE}
 
 map(as_vector(label_metabo %>% filter(!is.na(label_brut)) %>% select(label_brut)), function(var = .x){
   
@@ -565,6 +563,8 @@ map(as_vector(label_metabo %>% filter(!is.na(label_brut)) %>% select(label_brut)
     labs(title = str_c("Distribution de log(", var, ") en fonction de la progression"), y = str_c("log(", var, ")"))+
       scale_y_continuous(trans = "log")+
       facet_grid(~site)+
+          scale_fill_brewer(palette = "Set1", direction = -1)+
+    scale_color_brewer(palette = "Set1", direction = -1)+
   theme_philippe()+
     stat_compare_means()-> graph_log
     
@@ -575,6 +575,8 @@ map(as_vector(label_metabo %>% filter(!is.na(label_brut)) %>% select(label_brut)
   geom_jitter(width = .15, heigth = .15, aes( color = progression))+
     labs(title = str_c("Distribution de ", var, " en fonction de la progression"))+
       facet_grid(~site)+
+          scale_fill_brewer(palette = "Set1", direction = -1)+
+    scale_color_brewer(palette = "Set1", direction = -1)+
   theme_philippe()+
     stat_compare_means()
     
@@ -588,6 +590,8 @@ map(as_vector(label_metabo %>% filter(!is.na(label_brut)) %>% select(label_brut)
   geom_jitter(width = .15, heigth = .15, aes( color = progression))+
     labs(title = str_c("Distribution de ", var, " en fonction de la progression"))+
       facet_grid(~site)+
+          scale_fill_brewer(palette = "Set1", direction = -1)+
+    scale_color_brewer(palette = "Set1", direction = -1)+
   theme_philippe()+
     stat_compare_means()
   }
@@ -595,72 +599,11 @@ map(as_vector(label_metabo %>% filter(!is.na(label_brut)) %>% select(label_brut)
 })
 
 ```
-
-```{r include = FALSE}
-
-metabo_survival %>% 
- filter(site == "os") %>% 
-  filter(progression == "non")
-```
-
-
-
-###Je réalise la même analyse selon si le patient est mort ou non. 
-
-
-```{r}
-label_metabo %>% as.vector()
-
-map(as_vector(label_metabo %>% filter(!is.na(label_brut)) %>% select(label_brut)), function(var = .x){
-  
-  
-  if(str_detect(var, "mtv")){
-    
-    metabo_survival %>% 
-  ggplot(aes_string("dead", var))+
-  geom_boxplot(aes(fill = dead), alpha = .25, outlier.shape = NA)+
-  geom_jitter(width = .15, heigth = .15, aes( color = dead))+
-    labs(title = str_c("Distribution de log(", var, ") en fonction du décès"), y = str_c("log(", var, ")"))+
-      scale_y_continuous(trans = "log")+
-      facet_grid(~site)+
-  theme_philippe()+
-    stat_compare_means()-> graph_log
-    
-    graph <- 
-  metabo_survival %>% 
-  ggplot(aes_string("dead", var))+
-  geom_boxplot(aes(fill = dead), alpha = .25, outlier.shape = NA)+
-  geom_jitter(width = .15, heigth = .15, aes( color = dead))+
-    labs(title = str_c("Distribution de ", var, " en fonction du décès"))+
-      facet_grid(~site)+
-  theme_philippe()+
-    stat_compare_means()
-    
-    return(list(graph, graph_log))
-    
-  }
-  else {
-  metabo_survival %>% 
-  ggplot(aes_string("dead", var))+
-  geom_boxplot(aes(fill = dead), alpha = .25, outlier.shape = NA)+
-  geom_jitter(width = .15, heigth = .15, aes( color = dead))+
-    labs(title = str_c("Distribution de ", var, " en fonction du décès"))+
-      facet_grid(~site)+
-  theme_philippe()+
-    stat_compare_means()
-  }
-  
-})
-
-```
-
 
 ## Puis les données résumées
 
-### Peak et MTV
-
-
-```{r}
+### Moyennes des SUV 
+```{r results = FALSE}
 
 map(c("tep_0", "tep_2", "tep_4"), function(var = .x){
   
@@ -684,7 +627,8 @@ map(c("tep_0", "tep_2", "tep_4"), function(var = .x){
 
 ```
 
-```{r}
+### Sommes des MTV 
+```{r results = FALSE}
 
 map(c("tep_0", "tep_2", "tep_4"), function(var = .x){
   
@@ -708,7 +652,7 @@ map(c("tep_0", "tep_2", "tep_4"), function(var = .x){
 
 ```
 
-```{r}
+```{r results = FALSE}
 
 map(c("tep_0", "tep_2", "tep_4"), function(var = .x){
   
@@ -726,14 +670,14 @@ map(c("tep_0", "tep_2", "tep_4"), function(var = .x){
     scale_fill_brewer(palette = "Set1", direction = -1)+
     scale_color_brewer(palette = "Set1", direction = -1)+
     scale_y_continuous(trans = "log")+
-  labs(title = str_c("Distribution du log de la somme des MTV1 par patient par site pour la ", var), y = "Log de la Somme des MTV des cibles")+
+  labs(title = str_c("Distribution du log de la somme des MTV1 par patient par site \n pour la ", var), y = "Log de la Somme des MTV des cibles")+
   theme_philippe()
   
 })
 
 ```
 
-```{r}
+```{r results = FALSE}
 metabo_long_sum %>% 
   left_join(code, by = "id") %>% 
   left_join(survive, by = "code") %>% 
@@ -771,49 +715,275 @@ metabo_long_sum %>%
 ```
 
 
+### Je compare la distribution entre les FC (SUV peak et MTV) selon la progression ou non et par site.  
 
-# J'analyse les données métaboliques en fonction des caractéristiques tumorales 
+Index = FC des MTV\
+Index_suv = FC des SUV peak\
 
+```{r results = FALSE}
 
-
-
-
-```{r}
-metabo_summarized%>% 
-  left_join(code, by = "id") %>% 
-  left_join(survive, by = "code") %>% 
-  filter(site == "foie") %>% 
-finalfit(
-  dependent = "Surv(event = progression_event, time = pfs_riv_1)", 
-  explanatory = c("mean_tep_4_suv_peak", "mean_tep_4_mtv1", "mean_tep_4_mtv2", "mean_tep_0_suv_peak", "mean_tep_0_mtv1", "mean_tep_0_mtv2", "mean_tep_2_suv_peak", "mean_tep_2_mtv1", "mean_tep_2_mtv_2", "mean_mtv_tep2_tep0", "mean_mtv_tep4_tep0", "mean_mtv_tep4_tep2"), 
-  metrics = TRUE
-)
+map(as_vector(label_metabo %>% filter(!is.na(label_index)) %>% select(label_index)), function(var = .x){
+  
+  
+  if(str_detect(var, "mtv")){
+    
+    survival_data %>% 
+  ggplot(aes_string("progression", var))+
+  geom_boxplot(aes(fill = progression), alpha = .25, outlier.shape = NA)+
+  geom_jitter(width = .15, heigth = .15, aes( color = progression))+
+    labs(title = str_c("Distribution de log(", var, ") en fonction de la progression"), y = str_c("log(", var, ")"))+
+      scale_y_continuous(trans = "log")+
+      facet_grid(~site)+
+  theme_philippe()+
+    stat_compare_means()-> graph_log
+    
+    graph <- 
+  survival_data %>% 
+  ggplot(aes_string("progression", var))+
+  geom_boxplot(aes(fill = progression), alpha = .25, outlier.shape = NA)+
+  geom_jitter(width = .15, heigth = .15, aes( color = progression))+
+    labs(title = str_c("Distribution de ", var, " en fonction de la progression"))+
+      facet_grid(~site)+
+  theme_philippe()+
+    stat_compare_means()
+    
+    return(list(graph, graph_log))
+    
+  }
+  else {
+  survival_data %>% 
+  ggplot(aes_string("progression", var))+
+  geom_boxplot(aes(fill = progression), alpha = .25, outlier.shape = NA)+
+  geom_jitter(width = .15, heigth = .15, aes( color = progression))+
+    labs(title = str_c("Distribution de ", var, " en fonction de la progression"))+
+      facet_grid(~site)+
+  theme_philippe()+
+    stat_compare_means()
+  }
+  
+})
 
 ```
 
-```{r}
-metabo_summarized%>% 
-  left_join(code, by = "id") %>% 
-  left_join(survive, by = "code") %>% 
-  filter(site == "foie") %>% 
-finalfit(
-  dependent = "Surv(event = progression_event, time = pfs_riv_1)", 
-  explanatory = c("median_tep_4_suv_peak", "median_tep_4_mtv1", "median_tep_4_mtv2", "median_tep_0_suv_peak", "median_tep_0_mtv1", "median_tep_0_mtv2", "median_tep_2_suv_peak", "median_tep_2_mtv1", "median_tep_2_mtv_2", "median_mtv_tep2_tep0", "median_mtv_tep4_tep0", "median_mtv_tep4_tep2"), 
-  metrics = TRUE
-)
+
+# Je réalise la même analyse en fonction du décès 
+
+
+## d'abord les données brutes 
+
+Je compare la distribution entre les données brutes (SUV peak et MTV) selon la progression ou non et par site. Pour MTV je présente les données non transformées et après transformation en log. 
+
+```{r echo = FALSE,  results = FALSE}
+
+map(as_vector(label_metabo %>% filter(!is.na(label_brut)) %>% select(label_brut)), function(var = .x){
+  
+  
+  if(str_detect(var, "mtv")){
+    
+    metabo_survival %>% 
+  ggplot(aes_string("dead", var))+
+  geom_boxplot(aes(fill = dead), alpha = .25, outlier.shape = NA)+
+  geom_jitter(width = .15, heigth = .15, aes( color = dead))+
+    labs(title = str_c("Distribution de log(", var, ") en fonction de la mort"), y = str_c("log(", var, ")"))+
+      scale_y_continuous(trans = "log")+
+      facet_grid(~site)+
+  theme_philippe()+
+    stat_compare_means()-> graph_log
+    
+    graph <- 
+  metabo_survival %>% 
+  ggplot(aes_string("dead", var))+
+  geom_boxplot(aes(fill = dead), alpha = .25, outlier.shape = NA)+
+  geom_jitter(width = .15, heigth = .15, aes( color = dead))+
+    labs(title = str_c("Distribution de ", var, " en fonction de la mort"))+
+      facet_grid(~site)+
+  theme_philippe()+
+    stat_compare_means()
+    
+    return(list(graph, graph_log))
+    
+  }
+  else {
+  metabo_survival %>% 
+  ggplot(aes_string("dead", var))+
+  geom_boxplot(aes(fill = dead), alpha = .25, outlier.shape = NA)+
+  geom_jitter(width = .15, heigth = .15, aes( color = dead))+
+    labs(title = str_c("Distribution de ", var, " en fonction de la mort"))+
+      facet_grid(~site)+
+  theme_philippe()+
+    stat_compare_means()
+  }
+  
+})
 
 ```
 
-```{r}
-metabo_summarized%>% 
+## Puis les données résumées
+
+### Moyennes des SUV 
+```{r results = FALSE}
+
+map(c("tep_0", "tep_2", "tep_4"), function(var = .x){
+  
+  metabo_long_sum %>% 
   left_join(code, by = "id") %>% 
   left_join(survive, by = "code") %>% 
-  filter(site == "foie") %>% 
-  filter(id == 32)
-  filter(is.na(progression))
+  filter(str_detect(parametre, "suv")) %>% 
+    filter(tep == var) %>% 
+    filter(!is.na(dead)) %>%
+  ggplot(aes(fct_rev(dead), moyenne_cibles))+
+  geom_boxplot(aes(fill = dead), alpha = .25, outlier.shape = NA)+
+  geom_jitter(aes(color = dead), width = .2, height = .2)+
+  facet_grid(~site)+
+  stat_compare_means()+
+    scale_fill_brewer(palette = "Set1", direction = -1)+
+    scale_color_brewer(palette = "Set1", direction = -1)+
+  labs(title = str_c("Distribution de la moyenne des SUV peak par patient par site pour la ", var), y = "Moyenne des SUV des cibles")+
+  theme_philippe()
+  
+})
+
+```
+### Sommes des MTV
+```{r results = FALSE}
+
+map(c("tep_0", "tep_2", "tep_4"), function(var = .x){
+  
+  metabo_long_sum %>% 
+  left_join(code, by = "id") %>% 
+  left_join(survive, by = "code") %>% 
+  filter(str_detect(parametre, "mtv1")) %>% 
+    filter(tep == var) %>% 
+    filter(!is.na(dead)) %>%
+  ggplot(aes(fct_rev(dead), sum_cibles))+
+  geom_boxplot(aes(fill = dead), alpha = .25, outlier.shape = NA)+
+  geom_jitter(aes(color = dead), width = .2, height = .2)+
+  facet_grid(~site)+
+  stat_compare_means()+
+    scale_fill_brewer(palette = "Set1", direction = -1)+
+    scale_color_brewer(palette = "Set1", direction = -1)+
+  labs(title = str_c("Distribution de la somme des MTV1 par patient par site pour la ", var), y = "Somme des MTV des cibles")+
+  theme_philippe()
+  
+})
+
+```
+
+```{r results = FALSE}
+
+map(c("tep_0", "tep_2", "tep_4"), function(var = .x){
+  
+  metabo_long_sum %>% 
+  left_join(code, by = "id") %>% 
+  left_join(survive, by = "code") %>% 
+  filter(str_detect(parametre, "mtv1")) %>% 
+    filter(tep == var) %>% 
+    filter(!is.na(dead)) %>%
+  ggplot(aes(fct_rev(dead), sum_cibles))+
+  geom_boxplot(aes(fill = dead), alpha = .25, outlier.shape = NA)+
+  geom_jitter(aes(color = dead), width = .2, height = .2)+
+  facet_grid(~site)+
+  stat_compare_means()+
+    scale_fill_brewer(palette = "Set1", direction = -1)+
+    scale_color_brewer(palette = "Set1", direction = -1)+
+    scale_y_continuous(trans = "log")+
+  labs(title = str_c("Distribution du log de la somme des MTV1 par patient par site \n pour la ", var), y = "Log de la Somme des MTV des cibles")+
+  theme_philippe()
+  
+})
+
+```
+
+```{r results = FALSE}
+metabo_long_sum %>% 
+  left_join(code, by = "id") %>% 
+  left_join(survive, by = "code") %>% 
+  filter(str_detect(parametre, "mtv2") & site == "foie") %>% 
+    filter(!is.na(dead)) %>%
+  ggplot(aes(fct_rev(dead), sum_cibles))+
+  geom_boxplot(aes(fill = dead), alpha = .25, outlier.shape = NA)+
+  geom_jitter(aes(color = dead), width = .2, height = .2)+
+  facet_grid(~tep)+
+  stat_compare_means()+
+    scale_fill_brewer(palette = "Set1", direction = -1)+
+    scale_color_brewer(palette = "Set1", direction = -1)+
+  labs(title = str_c("Distribution de la somme des MTV2 par patient pour le foie"), y = "Somme des MTV des cibles")+
+  theme_philippe()
+
+```
+
+```{r results = FALSE}
+metabo_long_sum %>% 
+  left_join(code, by = "id") %>% 
+  left_join(survive, by = "code") %>% 
+  filter(str_detect(parametre, "mtv2") & site == "foie") %>% 
+    filter(!is.na(dead)) %>%
+  ggplot(aes(fct_rev(dead), sum_cibles))+
+  geom_boxplot(aes(fill = dead), alpha = .25, outlier.shape = NA)+
+  geom_jitter(aes(color = dead), width = .2, height = .2)+
+  facet_grid(~tep)+
+  stat_compare_means()+
+    scale_fill_brewer(palette = "Set1", direction = -1)+
+    scale_color_brewer(palette = "Set1", direction = -1)+
+  scale_y_continuous(trans = "log")+
+  labs(title = str_c("Distribution du log de la somme des MTV2 par patient pour le foie"), y = "Log de la Somme des MTV des cibles")+
+  theme_philippe()
+
 ```
 
 
+### Je compare la distribution entre les FC (SUV peak et MTV) 
+
+```{r results = FALSE}
+
+map(as_vector(label_metabo %>% filter(!is.na(label_index)) %>% select(label_index)), function(var = .x){
+  
+  
+  if(str_detect(var, "mtv")){
+    
+    survival_data %>% 
+  ggplot(aes_string("dead", var))+
+  geom_boxplot(aes(fill = dead), alpha = .25, outlier.shape = NA)+
+  geom_jitter(width = .15, heigth = .15, aes( color = dead))+
+    labs(title = str_c("Distribution de log(", var, ") en fonction de la mort"), y = str_c("log(", var, ")"))+
+      scale_y_continuous(trans = "log")+
+      facet_grid(~site)+
+          scale_fill_brewer(palette = "Set1", direction = -1)+
+    scale_color_brewer(palette = "Set1", direction = -1)+
+  theme_philippe()+
+    stat_compare_means()-> graph_log
+    
+    graph <- 
+  survival_data %>% 
+  ggplot(aes_string("dead", var))+
+  geom_boxplot(aes(fill = dead), alpha = .25, outlier.shape = NA)+
+  geom_jitter(width = .15, heigth = .15, aes( color = dead))+
+    labs(title = str_c("Distribution de ", var, " en fonction de la mort"))+
+      facet_grid(~site)+
+          scale_fill_brewer(palette = "Set1", direction = -1)+
+    scale_color_brewer(palette = "Set1", direction = -1)+
+  theme_philippe()+
+    stat_compare_means()
+    
+    return(list(graph, graph_log))
+    
+  }
+  else {
+  survival_data %>% 
+  ggplot(aes_string("dead", var))+
+  geom_boxplot(aes(fill = dead), alpha = .25, outlier.shape = NA)+
+  geom_jitter(width = .15, heigth = .15, aes( color = dead))+
+    labs(title = str_c("Distribution de ", var, " en fonction de la mort"))+
+      facet_grid(~site)+
+          scale_fill_brewer(palette = "Set1", direction = -1)+
+    scale_color_brewer(palette = "Set1", direction = -1)+
+  theme_philippe()+
+    stat_compare_means()
+  }
+  
+})
+
+```
 
 
 
