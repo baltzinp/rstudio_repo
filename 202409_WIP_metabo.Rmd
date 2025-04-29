@@ -109,8 +109,8 @@ survive
 
 
 ```{r}
-survival_index
-
+clinical_survival_data %>% 
+  ff_glimpse()
 ```
 
 

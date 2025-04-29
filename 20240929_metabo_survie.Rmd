@@ -71,7 +71,8 @@ sheet_names <-  c("patient", "tumeur", "traitement", "bio_before", "bio_between"
 data <- 
 map(sheet_names, function(var = .x){
   
-  read_xlsx("/Volumes/EXTENSION_MACMI/Analyses R/these_cedric_collen/20240829_bdd_cc.xlsx", sheet = var, na = c("", "NA", "NC", "nc", "na")) %>% 
+  #read_xlsx("/Volumes/EXTENSION_MACMI/Analyses R/these_cedric_collen/20240829_bdd_cc.xlsx", sheet = var, na = c("", "NA", "NC", "nc", "na")) %>% 
+  read_xlsx("/Users/baltzingerphilippe/Documents/R studio/these_cedric_collen/20240829_bdd_cc.xlsx", sheet = var, na = c("", "NA", "NC", "nc", "na")) %>% 
     janitor::clean_names() %>% 
     select(-contains("_rq")) %>% 
     arrange(code)
@@ -85,11 +86,11 @@ map(sheet_names, function(var = .x){
 
 data
 
-
 ```
 ```{r include = FALSE}
 
-survive <- read_tsv("/Volumes/EXTENSION_MACMI/Analyses R/these_cedric_collen/20240910_of_pfs_data.tsv")
+#survive <- read_tsv("/Volumes/EXTENSION_MACMI/Analyses R/these_cedric_collen/20240910_of_pfs_data.tsv")
+survive <- read_tsv("/Users/baltzingerphilippe/Documents/R studio/these_cedric_collen/20240910_of_pfs_data.tsv")
 
 survive
 
@@ -98,7 +99,8 @@ survive
 ```{r}
 
 code <- 
-read_xlsx("/Volumes/EXTENSION_MACMI/Analyses R/rstudio_repo/20240926_liste_id.xlsx", sheet = "code") %>% 
+#read_xlsx("/Volumes/EXTENSION_MACMI/Analyses R/rstudio_repo/20240926_liste_id.xlsx", sheet = "code") %>% 
+read_xlsx("/Users/baltzingerphilippe/Documents/R studio/rstudio_repo/20240926_liste_id.xlsx", sheet = "code") %>% 
   janitor::clean_names()
 
 ```
@@ -125,7 +127,8 @@ label_metabo
 metabo_wide <- 
 map(c("foie", "os", "peritoine", "ganglion"), function(var = .x){
   
-  read_xlsx("/Volumes/EXTENSION_MACMI/Analyses R/rstudio_repo/20240927_donnees_metaboliques_philippe.xlsx", sheet = var, na = c("", "NA", "NC", "nc", "na")) %>% 
+  #read_xlsx("/Volumes/EXTENSION_MACMI/Analyses R/rstudio_repo/20240927_donnees_metaboliques_philippe.xlsx", sheet = var, na = c("", "NA", "NC", "nc", "na")) %>% 
+  read_xlsx("/Users/baltzingerphilippe/Documents/R studio/rstudio_repo/20240927_donnees_metaboliques_philippe.xlsx", sheet = var, na = c("", "NA", "NC", "nc", "na")) %>% 
     janitor::clean_names() 
   
 }) %>% 
@@ -159,19 +162,6 @@ left_join(code, survive, by = "code") %>%
 metabo_survival %>% select(dead)
 ```
 
-```{r include = FALSE}
-
-metabo_summarized <- 
-
-metabo_wide %>% 
-  group_by(site, id) %>% 
-  get_summary_stats(matches("tep")) %>% 
-  select(id, site, variable, n, mean, median) %>% 
-  pivot_wider(names_from = variable, values_from = c("mean", "median"))
-
-metabo_summarized
-
-```
 
 
 ```{r}
@@ -231,6 +221,16 @@ metabo_long_sum %>%
 
 
 survival_data
+
+```
+
+
+```{r}
+
+clinical_survival_data <- 
+survival_data %>% 
+  left_join(data_filter %>% select(-diagnostic))
+
 
 ```
 
@@ -514,6 +514,56 @@ survival_data %>%
 ```
 
 Le seul item qui influe sur la survie est le fold change de la SUV peak TEP 2/0 sur les lésions hépatiques : une augmentation du fold change est associé à une baisse du risque de décès. Mais cet item n'est plus significativement associé en analyse multivariée. 
+
+## J'ajoute les données cliniques 
+
+### pour la PFS 
+```{r}
+
+
+clinical_explanatory <- c("grade", "sexe", "exerese_primitif")
+
+clinical_survival_data %>% 
+  filter(site == "foie") %>% 
+  finalfit(
+    dependent = dependent_pfs, 
+    explanatory = c(clinical_explanatory, explanatory_index, explanatory_selected), 
+    metrics = TRUE
+  ) %>% kable()
+
+```
+
+```{r}
+clinical_survival_data %>% 
+  filter(site == "os") %>% 
+  finalfit(
+    dependent = dependent_pfs, 
+    explanatory = c(clinical_explanatory, explanatory_index, explanatory_selected[-c(2,4,6)]), 
+    metrics = TRUE
+  ) %>% kable()
+```
+
+```{r}
+clinical_survival_data %>% 
+  filter(site == "ganglion") %>% 
+  finalfit(
+    dependent = dependent_pfs, 
+    explanatory = c(clinical_explanatory, explanatory_index, explanatory_selected[-c(2,4,6)]), 
+    metrics = TRUE
+  ) %>% kable()
+```
+
+```{r}
+clinical_survival_data %>% 
+  filter(site == "peritoine") %>% 
+  finalfit(
+    dependent = dependent_pfs, 
+    explanatory = c(clinical_explanatory, explanatory_index, explanatory_selected[-c(2,4,6)]), 
+    metrics = TRUE
+  ) %>% kable()
+```
+
+
 
 
 
