@@ -1,0 +1,91 @@
+---
+title: "Analyse subsidiaire pirhates"
+output: html_notebook
+author: "Philippe BALTZINGER"
+date: "2025/04/29"
+
+---
+
+```{r setup, include = FALSE}
+library(lubridate)
+library(readxl)
+library(broom)
+library(grid)
+library(gridExtra)
+library(cowplot)
+library(magrittr)
+library(viridis)
+library(ggpubr)
+library(janitor)
+library(kableExtra)
+library(rstatix)
+library(tidyverse)
+
+
+knitr::opts_chunk$set(comment=NA, prompt=FALSE, cache=FALSE, echo=FALSE, results='asis', warning = FALSE, message = FALSE)
+
+
+#constant
+# date_format="%d/%m/%Y"
+# cell_line=c("WT", "A4", "A23", "D16", "D45")
+# timepoint=c(24, 48, 72)
+# h_timepoint=c("H0", "H24", "H48", "H72")
+
+#plot modification
+plot_theme=theme_bw()+theme(title = element_text(size=18), axis.text = element_text(size=16), legend.text = element_text(size=16, face="bold"))
+
+theme_philippe = function (title_text_size = 12, axis_text_size = 10, legend_text_size = 10,
+                           legend_pos = "bottom"){
+  theme_bw() %+replace%
+    theme(
+      title = element_text(size=title_text_size), 
+      axis.text = element_text(size=axis_text_size), 
+      legend.text = element_text(size=legend_text_size, face="bold"), 
+      legend.position = legend_pos
+    )
+  
+}
+
+
+```
+
+
+```{r}
+basal <- 
+readxl::read_xlsx("/Users/philippe/Library/CloudStorage/OneDrive-HôpitauxUniversitairesdeStrasbourg/Etudes/PIRHATES/PlanAnalysePIrahtes.xlsx", sheet = "basal") %>% 
+  janitor::clean_names() %>% 
+  mutate(lieu = factor(lieu, levels = c("local", "central")), 
+         kit = factor(kit, levels = c("local", "roche", "abbott")), 
+         freq = round(n/127*100))
+
+basal
+```
+
+```{r}
+
+stratifie <- 
+readxl::read_xlsx("/Users/philippe/Library/CloudStorage/OneDrive-HôpitauxUniversitairesdeStrasbourg/Etudes/PIRHATES/PlanAnalysePIrahtes.xlsx", sheet = "hormones") %>% 
+  janitor::clean_names()
+
+stratifie
+```
+
+# J'analyse le dosage centralisé de manière "unique"
+
+C'est à dire, pour chaque dosage pris isolément du résultat des autres. 
+
+
+```{r}
+
+basal %>% 
+  filter(str_detect(tsh, "4")) %>% 
+  ggplot(aes(tsh, freq, fill = tsh))+
+  geom_col(show.legend = FALSE)+
+  facet_grid(~kit)+
+  scale_fill_manual(values = c("green", "red"))+
+  ggpubr::theme_pubclean()+
+  labs(title = "Distribution de la valeur de TSH selon le kit", x = "TSH", y = "%")+
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.75, hjust = 0.8))
+
+```
+
