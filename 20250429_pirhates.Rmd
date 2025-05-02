@@ -1,5 +1,5 @@
 ---
-title: "Analyse subsidiaire pirhates"
+title: "Analyse subsidiaire pirahtes"
 output: html_notebook
 author: "Philippe BALTZINGER"
 date: "2025/04/29"
@@ -18,8 +18,10 @@ library(viridis)
 library(ggpubr)
 library(janitor)
 library(kableExtra)
+library(deeptime)
 library(rstatix)
 library(tidyverse)
+
 
 
 knitr::opts_chunk$set(comment=NA, prompt=FALSE, cache=FALSE, echo=FALSE, results='asis', warning = FALSE, message = FALSE)
@@ -50,7 +52,7 @@ theme_philippe = function (title_text_size = 12, axis_text_size = 10, legend_tex
 ```
 
 
-```{r}
+```{r include=FALSE}
 basal <- 
 readxl::read_xlsx("/Users/philippe/Library/CloudStorage/OneDrive-HôpitauxUniversitairesdeStrasbourg/Etudes/PIRHATES/PlanAnalysePIrahtes.xlsx", sheet = "basal") %>% 
   janitor::clean_names() %>% 
@@ -61,13 +63,25 @@ readxl::read_xlsx("/Users/philippe/Library/CloudStorage/OneDrive-HôpitauxUnive
 basal
 ```
 
-```{r}
+```{r include = FALSE}
 
 stratifie <- 
 readxl::read_xlsx("/Users/philippe/Library/CloudStorage/OneDrive-HôpitauxUniversitairesdeStrasbourg/Etudes/PIRHATES/PlanAnalysePIrahtes.xlsx", sheet = "hormones") %>% 
-  janitor::clean_names()
+  janitor::clean_names() %>% 
+  mutate(freq = round(freq))
 
 stratifie
+```
+
+```{r include = FALSE}
+
+resume <- 
+readxl::read_xlsx("/Users/philippe/Library/CloudStorage/OneDrive-HôpitauxUniversitairesdeStrasbourg/Etudes/PIRHATES/PlanAnalysePIrahtes.xlsx", sheet = "summary") %>% 
+  janitor::clean_names() %>% 
+  mutate(freq = round(freq))
+
+resume
+
 ```
 
 # J'analyse le dosage centralisé de manière "unique"
@@ -82,10 +96,97 @@ basal %>%
   ggplot(aes(tsh, freq, fill = tsh))+
   geom_col(show.legend = FALSE)+
   facet_grid(~kit)+
-  scale_fill_manual(values = c("green", "red"))+
+  scale_fill_manual(values = c("#4daf4a", "#e41a1c"))+
   ggpubr::theme_pubclean()+
   labs(title = "Distribution de la valeur de TSH selon le kit", x = "TSH", y = "%")+
   theme(axis.text.x = element_text(angle = 45, vjust = 0.75, hjust = 0.8))
 
 ```
+
+
+Je regarde ensuite la variation induite par le kit de dosage sur le grade. 
+```{r}
+
+basal %>% 
+  filter(str_detect(tsh, "Sup|1")) %>% 
+  ggplot(aes(tsh, freq, fill = tsh, label = str_c(freq, " %")))+
+  geom_col(show.legend = FALSE)+
+  facet_grid(~kit)+
+  scale_fill_brewer(palette = "Paired") +
+  #scale_fill_manual(values = c("#4daf4a", "#e41a1c", "#d95f02"))+
+  ggpubr::theme_pubclean()+
+  geom_label(show.legend = FALSE)+
+  labs(title = "Distribution du grade de TSH selon le kit", x = "TSH", y = "%")+
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.75, hjust = 0.8))
+
+
+```
+
+# J'explore les données sur les HT
+
+Roche
+```{r}
+
+stratifie %>% 
+  filter(kit == "roche") %>% 
+  mutate(tsh = ifelse(tsh == "basse", "HIC", "Euthyroïdie"), 
+         tsh = factor(tsh, levels = c("HIC", "Euthyroïdie")), 
+         t4 = ifelse(t4 == "basse", "T4 normale", "T4 élevée"), 
+         t4 = factor(t4, levels = c("T4 normale", "T4 élevée")), 
+         t3 = ifelse(t3 == "basse", "T3 normale", "T3 élevée"), 
+         t3 = factor(t3, levels = c("T3 normale", "T3 élevée"))) %>% 
+  ggplot(aes(t3, freq, fill = t3, label = str_c(freq, " %")))+
+  geom_col(position = position_dodge())+
+  geom_label(show.legend = FALSE)+
+  scale_fill_manual(values = c("#c6dbef", "#08519c"))+
+  #facet_grid(t4~tsh)+
+  facet_grid_color(t4~tsh, colors = c("HIC" = "#cc4c02", "Euthyroïdie" = "#fee391", "T4 élevée" = "#dd3497", "T4 normale" = "#fcc5c0"))+
+  labs(title = "Répartition des valeurs de TSH, T3 et T4 selon le kit Roche", x = "T3", y = "%", fill = "T3")
+
+```
+
+
+Abbott
+```{r}
+
+stratifie %>% 
+  filter(kit == "abbott") %>% 
+  mutate(tsh = ifelse(tsh == "basse", "HIC", "Euthyroïdie"), 
+         tsh = factor(tsh, levels = c("HIC", "Euthyroïdie")), 
+         t4 = ifelse(t4 == "basse", "T4 normale", "T4 élevée"), 
+         t4 = factor(t4, levels = c("T4 normale", "T4 élevée")), 
+         t3 = ifelse(t3 == "basse", "T3 normale", "T3 élevée"), 
+         t3 = factor(t3, levels = c("T3 normale", "T3 élevée"))) %>% 
+  ggplot(aes(t3, freq, fill = t3, label = str_c(freq, " %")))+
+  geom_col(position = position_dodge())+
+  geom_label(show.legend = FALSE)+
+  scale_fill_manual(values = c("#c6dbef", "#08519c"))+
+  #facet_grid(t4~tsh)+
+  facet_grid_color(t4~tsh, colors = c("HIC" = "#cc4c02", "Euthyroïdie" = "#fee391", "T4 élevée" = "#dd3497", "T4 normale" = "#fcc5c0"))+
+  labs(title = "Répartition des valeurs de TSH, T3 et T4 selon le kit Roche", x = "T3", y = "%", fill = "T3")
+
+```
+
+Les 2 ... 
+```{r}
+
+stratifie %>% 
+  mutate(tsh = ifelse(tsh == "basse", "HIC", "Euthyroïdie"), 
+         tsh = factor(tsh, levels = c("HIC", "Euthyroïdie")), 
+         t4 = ifelse(t4 == "basse", "T4 normale", "T4 élevée"), 
+         t4 = factor(t4, levels = c("T4 normale", "T4 élevée")), 
+         t3 = ifelse(t3 == "basse", "T3 normale", "T3 élevée"), 
+         t3 = factor(t3, levels = c("T3 normale", "T3 élevée"))) %>% 
+  ggplot(aes(t3, freq, fill = t3, color = kit, label = str_c(freq, " %")))+
+  geom_col(position = position_dodge())+
+  geom_label(show.legend = FALSE, position =  position_dodge(0.8))+
+  scale_fill_manual(values = c("#c6dbef", "#08519c"))+
+  scale_color_manual(values = c("black", "#a50f15"))+
+  #facet_grid(t4~tsh)+
+  facet_grid_color(t4~tsh, colors = c("HIC" = "#cc4c02", "Euthyroïdie" = "#fee391", "T4 élevée" = "#dd3497", "T4 normale" = "#fcc5c0"))+
+  labs(title = "Répartition des valeurs de TSH, T3 et T4 selon les 2 kits", x = "T3", y = "%", fill = "T3")
+
+```
+
+
 
