@@ -1,0 +1,57 @@
+---
+title: "export_ct"
+format: html
+execute: 
+  echo: false
+---
+
+```{r}
+
+library(tidyverse)
+
+```
+
+```{r}
+data <- 
+read_delim("rapport_fabrice.csv", delim = ";")
+
+```
+
+```{r}
+
+unique(data$rq) %>% view()
+
+```
+
+```{r}
+
+filter_data_1 <- 
+data %>% 
+  filter(!str_detect(rq, "lombaire|preview|Rapport|RACHIS|Rachis|rachis|Reconstruction|resume|Screen|Smart|SUREST| os|AFFICHER|Dose|reform|LOMB|Protocol|Process|Reformat|recon|Recon|State")
+  ) %>%
+  select(type_examen, localisation, rq)
+
+```
+
+
+```{r}
+
+write_delim(filter_data_1, "20260217_export_dicom_filtre_avec_poumon.csv", delim = ";")
+
+```
+
+```{r}
+
+filter_data_2 <- 
+filter_data_1 %>% 
+  filter(!str_detect(rq, "LUNG|Mediastin|Parenchyme|PARENCHY|HYBRI|LOCA|POUMON|Poumon|poumon"))
+
+
+```
+
+
+```{r}
+write_delim(filter_data_2, "20260217_export_dicom_filtre_sans_poumon.csv", delim = ";")
+
+```
+
